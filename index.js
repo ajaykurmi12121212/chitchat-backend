@@ -8,14 +8,15 @@ require('dotenv').config()
 
 const app    = express()
 const server = http.createServer(app)
-const io     = new Server(server, {
-  cors: { origin: process.env.CLIENT_URL, credentials: true },
+
+const io = new Server(server, {
+  cors: { origin: '*', credentials: false },
   pingTimeout: 60000,
   maxHttpBufferSize: 10e6
 })
 
 app.set('io', io)
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }))
+app.use(cors({ origin: '*' }))
 app.use(express.json({ limit: '10mb' }))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
