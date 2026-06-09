@@ -1,18 +1,54 @@
 const { User, Chat, Message, Status } = require('../models')
 const { generateToken } = require('../middleware/auth')
+const twilio = require('twilio')
+
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+)
 
 // ── AUTH ─────────────────────────────────────────────────────
-exports.phoneLogin = async (req, res) => {
+
+// Send OTP
+exports.sendOTP = async (req, res) => {
   try {
-    const { phone, name } = req.body
+    const { phone } = req.body
     if (!phone) return res.status(400).json({ message: 'Phone required' })
+
+    await twilioClient.verify.v2
+      .services(process.env.TWILIO_SERVICE_SID)
+      .verifications.create({ to: `+91${phone}`, channel: 'sms' })
+
+    res.json({ success: true, message: 'OTP sent' })
+  } catch (e) {
+    res.status(500).json({ message: e.message })
+  }
+}
+
+// Verify OTP + Login
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { phone, code, name } = req.body
+    if (!phone || !code) return res.status(400).json({ message: 'Phone and OTP required' })
+
+    const result = await twilioClient.verify.v2
+      .services(process.env.TWILIO_SERVICE_SID)
+      .verificationChecks.create({ to: `+91${phone}`, code })
+
+    if (result.status !== 'approved') {
+      return res.status(400).json({ message: 'Invalid OTP' })
+    }
+
     let user = await User.findOne({ phone })
     if (!user) {
-      const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name||phone)}&background=16a34a&color=fff&size=128`
+      const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || phone)}&background=16a34a&color=fff&size=128`
       user = await User.create({ name: name || phone, phone, avatar })
     }
+
     res.json({ ...user.toJSON(), token: generateToken(user._id) })
-  } catch (e) { res.status(500).json({ message: e.message }) }
+  } catch (e) {
+    res.status(500).json({ message: e.message })
+  }
 }
 
 exports.getMe = async (req, res) => res.json(req.user)
